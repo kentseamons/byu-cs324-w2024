@@ -245,7 +245,7 @@ With your first message created, set up a UDP client socket, with
 address family and socket type, respectively.  Remember that the port passed as
 the second argument (`service`) to `getaddrinfo()` is type `char *`.  Thus, if
 you only have the port as an integer, then you should convert it (not cast
-it!).
+it!).  You can `sprintf()` to do this.
 
 _Do not call `connect()` on the socket!_  While `connect()` is useful for UDP
 (`SOCK_DGRAM`) communications in which the remote address and port will not
@@ -254,51 +254,98 @@ with which you are communicating.  `connect()` cannot be called more than once
 on a socket (see the man page for `connect(2)`), so you should instead use
 `sendto()` and `recvfrom()`.
 
-Since `sendto()` requires passing a remote address and port, you should save
-the value of the remote address set by `getaddrinfo()` into a
-`struct sockaddr_in` (or a `struct sockaddr_in6` for IPv6) that you have
-declared.  Additionally, because the kernel _implicitly_ assigns the local
-address and port to a given socket when none has been _explicitly_ assigned
-using `bind()`, you should learn the port that has been assigned using
-`getsockname()` and save it to a `struct sockaddr_in` (or `struct sockaddr_in6`
-for IPv6) that you have declared.  Finally, you will find it useful to keep
-track of your address family and address length.  Note that for levels 0
-through 3, your client will only use IPv4 (i.e., `AF_INET`), so these values
-(address family and length) will always be the same.  Nonetheless, keeping
-track of them is good practice, and you will find it useful in for
-[level 4 (extra credit)](#level-4-extra-credit) when IPv6 is added.
+The `sendto()` system call uses a `struct sockaddr *` to designate the
+remote address and port to which the message should be sent.  That `struct
+sockaddr *` actually points to an instance of `struct sockaddr_storage`
+(explained subsequently).  Thus, you should declare variables like the
+following:
 
-To keep track of all this, you might declare variables like the following:
+```c
+	struct sockaddr_storage remote_addr_ss;
+	struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
+```
+
+In the example above, `remote_addr_ss` is the variable in which the values are
+actually stored.  However, most of the system calls use type
+`struct sockaddr *`, so the code above assigns `remote_addr` to the address of
+`remote_addr_ss`.  Since `remote_addr` points to `remote_addr_ss`, you can use
+`remote_addr` for everything instead of `remote_addr_ss`.  The
+[sockets homework assignment](../07-hw-sockets) has examples of this.  The
+original `client.c` file contains example code for extracting the remote
+address and port from the results of `getaddrinfo()`.  Additionally, as part of
+that assignment you modified `client.c` to use `sendto()` by passing it a
+`struct sockaddr *` that points to an instance of `struct sockaddr_storage`.
+
+You are probably asking yourself why all the hassle with
+`struct sockaddr_storage` and `struct sockaddr`. It is a bit confusing!  The
+reason is that that there are two types of IP addresses: IPv4 and IPv6.  Since
+the former is 32 bits long, and the latter is 128 bits long, they have
+different storage requirements.  Thus, there is a `struct sockaddr_in` for IPv4
+and a `struct sockaddr_in6` for IPv6.  Instead of making two versions of every
+function and system call that takes an address as an argument -- one for
+`struct sockaddr_in *` and one for `struct sockaddr_in6 *` -- they use a
+generic `struct sockaddr_storage` storage structure and point to it with a
+`struct sockaddr *`.  This is C's version of polymorphism.
+
+All that being said, we have simplified things in this lab so that you just
+need to declare `remote_addr_ss` and `remote_addr`, as shown above, and use
+`remote_addr` for everything afterwards.
+
+You will also find it useful to keep track of your address family using
+something like the following:
 
 ```c
 	int addr_fam;
-	socklen_t addr_len;
-
-	struct sockaddr_in remote_addr_in;
-	struct sockaddr_in6 remote_addr_in6;
-	struct sockaddr *remote_addr;
-
-	struct sockaddr_in local_addr_in;
-	struct sockaddr_in6 local_addr_in6;
-	struct sockaddr *local_addr;
 ```
 
-See the [sockets homework assignment](../07-hw-sockets) for example code.
+Note that for levels 0 through 3, your client will only use IPv4 (i.e.,
+`AF_INET`), so the value for `addr_fam` will always be the same.  Nonetheless,
+keeping track of it is good practice, and you will find it useful in for
+[level 4 (extra credit)](#level-4-extra-credit) when IPv6 is added.
 
-A note about the `local_addr` and `remote_addr` variables shown above.  The
-functions `sendto()`, `recvfrom()`, and `bind()` take type `struct sockaddr *`
-as an argument, rather than `struct sockaddr_in *` or `struct sockaddr_in6 *`.
-Per the `bind(2)` man page: "The only purpose of this structure is to cast the
-structure pointer passed in addr in order to avoid compiler warnings." In
-essence, this structure makes it so that `bind()` (and the other functions) can
-have a single definition that supports both IPv4 and IPv6.  As long as the
-`struct sockaddr *` points to valid `struct sockaddr_in` or
-`struct sockaddr_in6` instance, then the function will work properly.  You can
-think of this as C's version of polymorphism.  All that being said, if your
-client maintains a `struct sockaddr *` (e.g., `local_addr`) that points to
-whichever of `local_addr_in` or `local_addr_in6` is correct for the current
-address family being used, you can simply use `local_addr` in the calls to
-`bind()` and friends.
+The `parse_sockaddr()` and `populate_sockaddr()` helper functions
+have been provided for you in [../code/sockhelper.c](../code/sockhelper.c) to
+extract the address and port from a `struct sockaddr_storage` or populate the
+`struct sockaddr_storage` with a given address and port, respectively.  Thus,
+you can maintain the IP address and port in separate variables as follows:
+
+```c
+	char remote_ip[INET6_ADDRSTRLEN];
+	unsigned short remote_port;
+```
+
+And you can populate the structure pointed to by `remote_addr` with the proper
+address and port values with something like this:
+
+```c
+	populate_sockaddr(remote_addr, addr_fam, remote_ip, remote_port);
+```
+Working with a string and an `unsigned short` are much more intuitive.
+
+Finally, you will want to do something similar for keeping track of the local
+address and port.  Because the kernel _implicitly_ assigns the local address
+and port to a given socket when none has been _explicitly_ assigned using
+`bind()`, you should learn the port that has been assigned using
+`getsockname()` and save it to a `struct sockaddr *` that points to a `struct
+sockaddr_storage`.  For example:
+
+```c
+	struct sockaddr_storage local_addr_ss;
+	struct sockaddr *local_addr = (struct sockaddr *)&local_addr_ss;
+
+	char local_ip[INET6_ADDRSTRLEN];
+	unsigned short local_port;
+```
+
+Then:
+
+```c
+	socklen_t addr_len = sizeof(struct sockaddr_storage);
+	s = getsockname(sock, local_addr, &addr_len);
+```
+
+The `client.c` file in the [sockets homework assignment](../07-hw-sockets) has
+examples of this.
 
 When everything is set up, send your message using `sendto()`.  Then read the
 server's response with a call to `recvfrom()` Remember, it is just one call to
@@ -557,57 +604,17 @@ the remote port for future communications with the server.  That value is an
 Some guidance follows as to how to use the new remote port in future
 communications.
 
-It was recommended [previously](#sending-and-receiving) that you maintain local
-and remote addresses and ports using structures of type `struct sockaddr_in`
-(or `struct sockaddr_in6` for IPv6).  We now take a closer look at these
-structures to see how things are stored.  The data structures used for holding
-local or remote address and port information are defined as follows (see the
-man pages for `ip(7)` and `ipv6(7)`, respectively).
-
-For IPv4 (`AF_INET`):
-```c
-           struct sockaddr_in {
-               sa_family_t    sin_family; /* address family: AF_INET */
-               in_port_t      sin_port;   /* port in network byte order */
-               struct in_addr sin_addr;   /* internet address */
-           };
-
-           /* Internet address. */
-           struct in_addr {
-               uint32_t       s_addr;     /* address in network byte order */
-           };
-```
-
-For IPv6 (`AF_INET6`):
-```c
-           struct sockaddr_in6 {
-               sa_family_t     sin6_family;   /* AF_INET6 */
-               in_port_t       sin6_port;     /* port number */
-               uint32_t        sin6_flowinfo; /* IPv6 flow information */
-               struct in6_addr sin6_addr;     /* IPv6 address */
-               uint32_t        sin6_scope_id; /* Scope ID (new in 2.4) */
-           };
-
-           struct in6_addr {
-               unsigned char   s6_addr[16];   /* IPv6 address */
-           };
-```
-
-Thus, the port of the structure can be updated simply by doing the following:
+It was recommended [previously](#sending-and-receiving) that you keep track of
+the remote addresses and ports in the `remote_ip` and `remote_port` variables,
+so you can populate `remote_addr` with the proper values by calling
+`populate_sockaddr()`.  Thus, after receiving the directions response from the
+server and extracting the new remote port, you can just do something like this:
 
 ```c
-	remote_addr_in.sin_port = htons(port);
+	populate_sockaddr(remote_addr, addr_fam, remote_ip, remote_port);
 ```
 
-Note that the `sin_port` of the `struct sockaddr_in` member contains the port
-in *network* byte ordering (See [Message Formatting](#message-formatting)),
-hence the use of `htons()`.
-
-The same for IPv6:
-
-```c
-	remote_addr_in6.sin6_port = htons(port);
-```
+Of course, `remote_ip` should still contain the appropriate IP address.
 
 Just as with level 0, have your code
 [collect all the chunks and printing the entire treasure to standard output](#program-output).
@@ -635,48 +642,37 @@ port for future communications with the server.  That value is an
 [Message Formatting](#message-formatting)).
 
 Association of a local address and port to a socket is done with the `bind()`
-function.  The following tips associated with `bind()` are not specific to UDP
-sockets (type `SOCK_DGRAM`) but are nonetheless useful for this lab:
+function.  `bind()` cannot be called on a socket after a local address and port
+have been assigned to that socket -- whether explicitly with `bind()` or
+implicitly after a call to `sendto()`.  Therefore, every time the client is
+told to use a new local port (i.e., with op-code 2 in a directions response),
+_the current socket must be closed_, and a new one must be created.  Then
+`bind()` is called on the new socket.
 
- - The local address and port can be associated with a socket using `bind()`.
-   See the man pages for `udp(7)` and `bind(2)`.
- - `bind()` can only be called *once* on a socket.  See the man page for
-   `bind(2)`.
- - Even if `bind()` has *not* been called on a socket, if a local address and
-   port have been associated with the socket implicitly (i.e., when `write()`,
-   `send()`, or `sendto()` is called on that socket), `bind()` cannot be called
-   on that socket.  See the [sockets homework assignment](../07-hw-sockets) for
-   an example of when the local address and port are implicitly set.
-
-Therefore, every time the client is told to use a new local port (i.e., with
-op-code 2 in a directions response), _the current socket must be closed_, and a
-new one must be created.  Then `bind()` is called on the new socket.
-
-It was recommended [previously](#sending-and-receiving) that you maintain local
-and remote addresses and ports using structures of type `struct sockaddr_in`
-(or `struct sockaddr_in6` for IPv6).  Because you have done this, you can now
-run something like this to bind the newly-created socket to a specific port:
+It was recommended [previously](#sending-and-receiving) that you keep track of
+the local address and port in the `local_ip` and `local_port` variables, so you
+can populate `local_addr` and `local_port` with the proper values by calling
+`populate_sockaddr()`.  Thus, after receiving the directions response from the
+server and extracting the new local port, you can just do something like this:
 
 ```c
-	local_addr_in.sin_family = AF_INET; // use AF_INET (IPv4)
-	local_addr_in.sin_port = htons(port); // specific port
-	local_addr_in.sin_addr.s_addr = 0; // any/all local addresses
+	populate_sockaddr(local_addr, addr_fam, NULL, local_port);
+```
 
-	local_addr_in6.sin6_family = AF_INET6; // IPv6 (AF_INET6)
-	local_addr_in6.sin6_port = htons(port); // specific port
-	bzero(local_addr_in6.sin6_addr.s6_addr, 16); // any/all local addresses
+(Note that the `local_addr` can be `NULL`, which tells the system to use
+whichever address makes sense.)
 
-	if (bind(sfd, local_addr, addr_len) < 0) {
+At this point you can call `bind()` on the socket, passing `local_addr`, which
+refers to the local address and port:
+
+```c
+	if (bind(sock, local_addr, sizeof(struct sockaddr_storage)) < 0) {
 		perror("bind()");
 	}
 ```
 
-Note that this code prepares both `local_addr_in` and `local_addr_in6` with the
-appropriate values for receiving on a given port.  However, it's not that we're
-using both.  If `local_addr` is pointing to the one that matters at the moment,
-as has been suggested [previously](#sending-and-receiving), then only the one
-pointed to will matter.  However, there is no harm preparing both to avoid
-conditionals based on address family.
+Again, the `server.c` file of the
+[sockets homework assignment](../07-hw-sockets) has examples of this.
 
 
 ### Checkpoint 8
@@ -699,15 +695,16 @@ following to prepare the next directions request:
  - Extract the op-param (bytes `n + 2` and `n + 3`) as an `unsigned short` in
    network byte order.  The extracted value will be referred to hereafter as
    `m`.   While `m` takes up two bytes, for consistency with op-params used
-   with other op-codes, its value will be only between 1 and 7.
+   with other op-codes, its value will be only between 1 and 7, which means
+   that the most significant byte will always be 0.
  - Read `m` datagrams from the socket using the _local_ port to which the
    socket is already bound.  Each of these datagrams will come from a
    randomly-selected _remote_ port on the server, so `recvfrom()` must be used
    by the client to read them to determine which port they came from.  You
-   should declare a new `struct sockaddr_in` (or `struct sockaddr_in6` for
-   IPv6) variable for use with `recvfrom()`, so the remote port with which your
-   client had been sending directions requests is not lost; the next directions
-   request will be sent to that port, once it is prepared.
+   should declare new `struct sockaddr_storage` and `struct sockaddr *`
+   variables for use with `recvfrom()`, so you don't overwrite the value of
+   your `remote_addr_ss` variable.  The next directions request will be sent to
+   that address and port, once it is prepared.
 
    Each of the `m` datagrams received will have 0 length.  However, the contents
    of the datagrams are not what is important; what is important is the remote
@@ -716,9 +713,10 @@ following to prepare the next directions request:
  - Sum the values of the remote ports of the `m` datagrams to derive the nonce.
    Remember the following:
 
-   - Each of the ports must be in host order before its value is added.
-   - The sum of the ports might exceed the value of the 16 bits associated with
-     an `unsigned short` (16 bits), so you will want to keep track of their
+   - Each of the ports must be in host order before its value is added (Hint:
+     use `ntohs()`).
+   - The sum of the ports might overflow the 16 bits associated with an
+     `unsigned short` (16 bits), so you will want to keep track of their
      _sum_ with an `unsigned int` (32 bits).
  - Add 1 to the nonce, and prepare the new directions request with that value.
  - Send the directions request with the same local and remote ports with which
@@ -746,27 +744,21 @@ following the prepare the next directions request:
  - Extract the op-param (bytes `n + 2` and `n + 3`) from the response and use
    that value as the remote port for future communications with the server.
    This part is the same as with [op-code 1](#level-1).
- - Prepare a new client socket using whichever address family was _not_ being
-   used before.  If IPv4 (`AF_INET`) was in being used, then switch to IPv6
-   (`AF_INET6`) and vice-versa.  Follow the instructions from
-   [Sending and Receiving](#sending-and-receiving) to prepare your socket,
-   using the new address family and new remote port with `getaddrinfo()` (the
-   hostname will not change!).
+ - Call `getaddrinfo()` with a `hints.ai_family` value corresponding to
+   whichever family was _not_ being used before.  If IPv4 (`AF_INET`) was in
+   being used, then switch to IPv6 (`AF_INET6`) and vice-versa.  Use the new
+   port as the second argument to `getaddrinfo()`  Remember to convert it to a
+   string using `sprintf()`.  Follow the instructions from
+   [Sending and Receiving](#sending-and-receiving) to create and prepare your
+   socket with the return values of `getaddrinfo()`.
  - Remember to save your remote and local address and port information as shown
    [previously](#sending-and-receiving).
- - Update any variables that are specific to address family.  Depending on your
-   implementation, these might include: `addr_fam`, `addr_len`, `remote_addr`,
-   and `local_addr`.
+ - Update the value of the `addr_fam` variable.
  - Close the old socket.  It is no longer needed!
 
 
 Note that handling a socket that might be one of two different address families
 requires a bit of logical complexity.
-[However, it has been suggested](#sending-and-receiving) that you maintain two
-variables for the current local address (`local_addr_in` and `local_addr_in6`)
-and remote address (`remote_addr_in` and `remote_addr_in6`).  If you are using
-instances of `struct sockaddr *` to always point to the address structure
-associated with the appropriate address family, then this should "just work".
 
 
 ### Checkpoint 10
@@ -912,26 +904,16 @@ manipulation:
  - Receiving every message requires exactly one call to `read()`, `recv()`, or
    `recvfrom()`.  In some cases (e.g., op-code 3) `recvfrom()` _must_ be used.
    See the man page for `udp(7)`.
- - When 0 is returned by a call to `read()` or `recv()` on a socket of type
+ - When 0 is returned by a call to `recvfrom()` on a socket of type
    `SOCK_DGRAM`, it simply means that there was no data/payload in the datagram
-   (i.e., it was an "empty envelope").  See "RETURN VALUE" in the `recv()` man
-   page.
+   (i.e., it was an "empty envelope").  See "RETURN VALUE" in the `recvfrom()`
+   man page.
 
    Note that this is different than the behavior associated with a socket of
    type `SOCK_STREAM`, in which if `read()` or `recv()` returns 0, it is a
    signal that `close()` has been called on the remote socket, and the
    connection has been shut down.  With UDP (type `SOCK_DGRAM`), there is no
-   connection to be shutdown.
- - Generally, either `connect()` must be used to associate a remote address and
-   port with the socket, or `sendto()` must be used when sending messages.
-   For this lab, please do _not_ use `connect()`; only use `sendto()`.  Because
-   the remote port will be changing, if `connect()` is used, then the socket
-   will be bound to a specific remote address and port, and a new socket will
-   have to be created to change that, e.g., in the case that you are directed
-   to use a new remote address and port (op-code 1) or you have to receive
-   something from a different address and port (op-code 3).
- - `sendto()` can be used to override the remote address and port associated
-   with the socket.  See the man page for `udp(7)`.
+   connection to be shut down.
 
 
 ## Testing Servers
@@ -978,10 +960,8 @@ have created the following script, which will show both a status of servers the
    ```
    calls `strace` on `./treasure_hunter`, showing only calls to `sendto()` and
    `recvfrom()`.  By reading the `strace` output, you can compare the values
-   you are getting or setting for the `sin_port` member of a
-   `struct sockaddr_in` instance (or `sin6_port` member of a
-   `struct sockaddr_in6` instance) to see if they match what you are printing
-   out for those values.
+   you are getting or setting with `parse_sockaddr()` and `populate_sockaddr()`
+   to see if they match what you are printing out for those values.
  - If a socket operation like `recvfrom()` results in a "Bad Address" error, it
    is often because the `addr_len` parameter had an incorrect value.  The
    `addr_len` parameter should contain a pointer to (the address of) a value
