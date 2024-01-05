@@ -18,27 +18,28 @@ BYTES_MINUS_CHUNK = 8
 TIMEOUT = 20
 
 LEVEL_SCORES = { 0: 50, 1: 15, 2: 15, 3: 15, 4: 5 }
+LEVELS_EXTRA_CREDIT = [ 4 ]
 
-SUMS = ['127624217659f4ba97d5457391edc8f60758714b',
-        '2483b89fefaee5a83c25ba92dda9bd004357d6b1',
-        '285e8e43bf9d8b7204f6972a3be88b8a599b068d',
-        '3334488d5b819492e13335105df59164acbf98a0',
-        '384835f2469dbb37a6eb0bbf6f66e45677f61423',
-        '3f362e32653be4ab829fd7b9838fdfe71c01385d',
-        '5bc7244d527b79d2625d51ab514f0412d22acc2c',
-        '7514a7a267acdfed8de2bcf0729a2037035c3acd',
-        'b156795f7b657f2fe33639b4f0bb3f6193960f79',
-        'c2f7e1078c91ab8ce0674680e7d2e7ab9a335a06',
-        'c41d89fe9ebac2cf06fc8e3f0f0f8335ec9dce8f',
-        'c657aeed6d2c2eeb40382898cdd4f3d25182c719',
-        'd29e5524dda590d2eaf097e9e32b53cb9770e965',
-        'dec427a457cc1cba9533630a2c511cd5f21aa1f0',
-        'fee33676b4c20e5b267ba40b2eba3c2c7ee3d260',
-        'ffb54044122cb1883513849d396cf144af3e0ed4']
+SUMS = ['3e7949f4943f1d40959c87166a46e0433665fb19',
+        '4175db5d21868441178f14ed431eb0a6b587a9cf',
+        '6e49aceeb8a870a9a131064862442f3b0664a31f',
+        '254da7877caff8c91cff192b02ef4dec658e8401',
+        '39a6b49799b21986e60e6777a5650a377a03890c',
+        '72a0e348530a522b172497fbab4dccddd609fb18',
+        'd10f59f215cdf4b3e4cbe338f3b470dd0f1ae206',
+        'ef454bccd3384c0df7a7e9296763857379b3381b',
+        '461e8be6540b5d11c19b89afbe18c4bfd6b9ff24',
+        '6073c4db64a9d94e831a4449030461819ce875ca',
+        '715ec633372a4296cf33a168dafdefe7fd9acd16',
+        '528725f471a7cf184b482bac0e6339edc89daa36',
+        '327d51bb647a904ad38bbb1cc3089a9135ffaf7d',
+        '0796bf7759f707ef55218bd9ccf405ef8f6fc882',
+        'd8e1d8f75a408e3ad40156f94a5d779c4626ff9c',
+        '30242ce853936406789d806c1fb6b95a535bc013']
 
 RECV_RE = re.compile('^recv(from)?.* = (\d+)$')
 
-level_seed_result = (False, False, None, None)
+level_seed_result = (False, 0, None, None)
 
 def tmp_server(port):
     global level_seed_result
@@ -51,10 +52,10 @@ def tmp_server(port):
     except socket.timeout:
         return
     if len(buf) != 8:
-        level_seed_result = (True, False, None, None)
+        level_seed_result = (True, len(buf), None, None)
         return
     level, userid, seed = struct.unpack('!HIH', buf[:8])
-    level_seed_result = (True, True, level, seed)
+    level_seed_result = (True, len(buf), level, seed)
 
 def test_level_seed(level, seed):
     global level_seed_result
@@ -68,13 +69,13 @@ def test_level_seed(level, seed):
     t.join()
     p.kill()
     if not level_seed_result[0]:
-        return 'Port provided on command line is not used by client'
-    if not level_seed_result[1]:
-        return 'Initial message length invalid'
+        return f'Client does not communicate with port provided on command line ({port})'
+    if level_seed_result[1] != 8:
+        return f'Initial message length invalid ({level_seed_result[1]}).'
     if level_seed_result[2] != level:
-        return 'Level provided on command line is not sent by client'
+        return f'Level sent by client ({level_seed_result[2]}) is different from that provided on command line ({level}).'
     if level_seed_result[3] != seed:
-        return 'Seed provided on command line is not sent by client'
+        return f'Seed sent by client ({level_seed_result[3]}) is different from that provided on command line ({seed}).'
     return ''
 
 def main():
@@ -93,9 +94,14 @@ def main():
     score = 0
     max_score = 0
     for level in levels:
-        sys.stdout.write(f'Testing level {level}:\n')
+        if level in LEVELS_EXTRA_CREDIT:
+            extra_credit_str = ' (extra credit)'
+        else:
+            extra_credit_str = ''
+        sys.stdout.write(f'Testing level {level}{extra_credit_str}:\n')
         for seed in SEEDS:
-            max_score += LEVEL_SCORES[level] / len(SEEDS)
+            if level not in LEVELS_EXTRA_CREDIT:
+                max_score += LEVEL_SCORES[level] / len(SEEDS)
             sys.stdout.write(f'    Seed %5d:' % (seed))
             sys.stdout.flush()
 
@@ -109,10 +115,14 @@ def main():
                         timeout=TIMEOUT)
             except subprocess.TimeoutExpired:
                 treasure = b''
+                treasure_len = 0
                 strace_output = b''
                 h = ''
             else:
                 treasure = p.stdout
+                if treasure and treasure.endswith(b'\n'):
+                    treasure = treasure[:-1]
+                treasure_len = len(treasure)
                 strace_output = p.stderr
                 h = hashlib.sha1(treasure).hexdigest()
 
@@ -128,15 +138,13 @@ def main():
                     if received_bytes > 1:
                         tot_bytes += received_bytes - BYTES_MINUS_CHUNK
             
-            allowed_lengths = [tot_bytes]
-            if treasure and treasure[-1] == b'\n':
-                allowed_lengths += 1
-
-            if h in SUMS and tot_bytes in allowed_lengths:
+            if h not in SUMS:
+                sys.stdout.write(f' FAILED: output does not match')
+            elif tot_bytes != treasure_len:
+                sys.stdout.write(f' FAILED: invalid number of bytes received')
+            else:
                 score += LEVEL_SCORES[level] / len(SEEDS)
                 sys.stdout.write(f' PASSED')
-            else:
-                sys.stdout.write(f' FAILED')
             if warn_msg:
                 sys.stdout.write(f' (warning: {warn_msg})')
             sys.stdout.write('\n')
