@@ -238,7 +238,7 @@ Of course, you have not sent or received any messages at this point, but you
 now know how to *format* the initial message appropriately.
 
 
-### Sending and Receiving
+### Socket Setup
 
 With your first message created, set up a UDP client socket, with
 `getaddrinfo()` and `socket()`, specifying `AF_INET` and `SOCK_DGRAM` as the
@@ -270,11 +270,7 @@ actually stored.  However, most of the system calls use type
 `struct sockaddr *`, so the code above assigns `remote_addr` to the address of
 `remote_addr_ss`.  Since `remote_addr` points to `remote_addr_ss`, you can use
 `remote_addr` for everything instead of `remote_addr_ss`.  The
-[sockets homework assignment](../07-hw-sockets) has examples of this.  The
-original `client.c` file contains example code for extracting the remote
-address and port from the results of `getaddrinfo()`.  Additionally, as part of
-that assignment you modified `client.c` to use `sendto()` by passing it a
-`struct sockaddr *` that points to an instance of `struct sockaddr_storage`.
+[sockets homework assignment](../07-hw-sockets) has examples of this.
 
 You are probably asking yourself why all the hassle with
 `struct sockaddr_storage` and `struct sockaddr`. It is a bit confusing!  The
@@ -291,17 +287,18 @@ All that being said, we have simplified things in this lab so that you just
 need to declare `remote_addr_ss` and `remote_addr`, as shown above, and use
 `remote_addr` for everything afterwards.
 
-You will also find it useful to keep track of your address family using
-something like the following:
+Each entry of the results list populated by `getaddrinfo()` contains a member
+`ai_addr` which is a `struct sockaddr *`.  You can copy the value pointed to by
+`ai_addr` to the structure pointed to by `remote_addr` using something like
+this:
 
 ```c
-	int addr_fam;
+		memcpy(remote_addr, rp->ai_addr, sizeof(struct sockaddr_storage));
 ```
 
-Note that for levels 0 through 3, your client will only use IPv4 (i.e.,
-`AF_INET`), so the value for `addr_fam` will always be the same.  Nonetheless,
-keeping track of it is good practice, and you will find it useful in for
-[level 4 (extra credit)](#level-4-extra-credit) when IPv6 is added.
+See the original `client.c` file in the
+[sockets homework assignment](../07-hw-sockets) for the example code from which
+this came.
 
 The `parse_sockaddr()` and `populate_sockaddr()` helper functions
 have been provided for you in [../code/sockhelper.c](../code/sockhelper.c) to
@@ -320,7 +317,13 @@ address and port values with something like this:
 ```c
 	populate_sockaddr(remote_addr, addr_fam, remote_ip, remote_port);
 ```
-Working with a string and an `unsigned short` are much more intuitive.
+
+Note that `addr_fam` refers to the address family, which is an integer (type
+`int`) having a value of either `AF_INET` (IPv4) or `AF_INET6` (IPv6).
+
+Working with a string (`char *`) for IP address and an `unsigned short` for
+port is a little more intuitive than working strictly with instances of `struct
+sockaddr_storage`.
 
 Finally, you will want to do something similar for keeping track of the local
 address and port.  Because the kernel _implicitly_ assigns the local address
@@ -342,20 +345,42 @@ Then:
 ```c
 	socklen_t addr_len = sizeof(struct sockaddr_storage);
 	s = getsockname(sock, local_addr, &addr_len);
+	parse_sockaddr(local_addr, local_ip, &local_port);
 ```
+
+Note that for levels 0 through 3, your client will only use IPv4 (i.e.,
+`AF_INET`), so the value for `addr_fam` will always be the same.  Nonetheless,
+keeping track of it is good practice, and you will find it useful in for
+[level 4 (extra credit)](#level-4-extra-credit) when IPv6 is added.
 
 The `client.c` file in the [sockets homework assignment](../07-hw-sockets) has
 examples of this.
 
-When everything is set up, send your message using `sendto()`.  Then read the
-server's response with a call to `recvfrom()` Remember, it is just one call to
-each!  Store the return value of  `recvfrom()`, which reflects the number of
-bytes you received.  Unlike the [initial request](#initial-request)
-you sent, which is always eight bytes, the size of the response is variable
-(but will never be more than 256 bytes).  Finally, call `print_bytes()` to
-print out the contents of the message received by the server.
+
+### Sending and Receiving
+
+When everything is set up, send your message using `sendto()`.
+As part of the [sockets homework assignment](../07-hw-sockets) you modified
+`client.c` to use `sendto()` by passing it a `struct sockaddr *` that points to
+an instance of `struct sockaddr_storage`.  You stored this is in the file
+`client-udp.c`.  You can use this for reference.
+
+After the call to `sendto()`, read the server's response with single a call to
+`recvfrom()` Remember, with UDP (type `SOCK_DGRAM`) it is just one call to
+`sendto()` and one call to `recvfrom()`!  There is no need to loop.
+
+Store the return value of `recvfrom()`, which reflects the number of bytes you
+received.  Unlike the [initial request](#initial-request) you sent, which is
+always eight bytes, the size of the response is variable (but will never be
+more than 256 bytes).
+
+Finally, use `printf()` to print out the size of the respone, and call
+`print_bytes()` to print out the contents of the message received by the
+server.
 
 Re-build and re-run your program:
+
+(See note about server name below.)
 
 ```bash
 make
