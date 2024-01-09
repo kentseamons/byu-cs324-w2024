@@ -210,7 +210,7 @@ $ ./treasure_hunter server 32400 1 7719
 To the right of the offset (`00:`) are the following: the byte at index 0,
 which should always have value 0 (`00`); the byte at index 1, which has value
 1, corresponding to level 1 (`01`); bytes 2 through 5, which represent the user
-ID 123456789 (`07 5B CD 15`); and bytes 6 and 7, which represent the seed
+ID 123456789 (`07 5B CD 15`); and bytes 6 and 7, which represent the seed 7719
 (`1E 27`).  Because this message is not "text", there are no useful ASCII
 representations of the byte values, so the output on the right is mostly `.`.
 
@@ -378,18 +378,48 @@ Finally, use `printf()` to print out the size of the respone, and call
 `print_bytes()` to print out the contents of the message received by the
 server.
 
-Re-build and re-run your program:
+Re-build and re-run your program.
 
-(See note about server name below.)
+At this point, you need to supply the hostname corresponding to an actual
+server. See [this section](#testing-servers) for a list of servers and ports
+that you may use.  Replace "server" with one of those servers.  Port will
+always be 32400.
 
 ```bash
 make
 ./treasure_hunter server 32400 0 7719
 ```
 
-At this point, you need to supply the name of an actual server. See
-[this section](#testing-servers) for a list of servers and ports that you may
-use.
+Also try running the with `strace`, which will allow you to see the `sendto()`
+and `recvfrom()` system calls, including when (and whether or not!) they
+return.
+
+(Replace "server" with the hostname of an actual server.)
+
+```bash
+strace -xe trace=sendto,recvfrom ./treasure_hunter server 32400 0 7719
+```
+
+That will produce output that will include something like this:
+
+```
+sendto(3, "\x00\x01\x07\x5b\xcd\x15\x1e\x27", 8, 0, {sa_family=AF_INET, sin_port=htons(32400), sin_addr=inet_addr("192.0.2.1")}, 128) = 8
+recvfrom(3, "\x04\x61\x62\x63\x64\x01\xbe\xef\x12\x34\x56\x78", 512, 0, {sa_family=AF_INET, sin_port=htons(32400), sin_addr=inet_addr("192.0.2.1")}, [128 => 16]) = 12
+```
+
+This shows you:
+ - for the `sendto()` call:
+   - the file descriptor used: fd 3, corresponding to your socket
+   - the data that was sent: bytes `00 01 07 5b cd 15 1e 27` (hexadecimal)
+   - the remote address and port to which the data was sent: 192.0.2.1 port 32400
+ - for the `recvfrom()` call:
+   - the file descriptor used: fd 3, corresponding to your socket
+   - the data that was received: `04 61 62 63 64 01 be ef 12 34 56 78`
+     (hexadecimal)
+   - the remote address and port from which the data was received: 192.0.2.1
+     port 32400
+Use this output to double-check what you think you are sending and receiving
+against what you are actually sending and receiving.
 
 
 ### Checkpoint 3
@@ -397,6 +427,7 @@ use.
 All of the system calls (e.g., `socket()`, `sendto()`, `recvfrom()`) should be
 returning successfully.  If that is not the case, now is the time to fix it.
 Check the return value, and use `perror()` when a system call fails.
+
 
 
 ### Directions Response
@@ -943,8 +974,8 @@ manipulation:
 
 ## Testing Servers
 
-The following domain names and ports correspond to the servers where the games
-might be initiated:
+The following hostnames and ports (format: "hostname:port") correspond to the
+servers where the games might be initiated.
 
  - alaska:32400
  - arkansas:32400
@@ -962,7 +993,7 @@ might be initiated:
 Note that all servers provide exactly the same behavior.  However, to balance
 the load and to avoid servers that might be down for one reason or another, we
 have created the following script, which will show both a status of servers the
-*primary* machine that *you* should use:
+primary hostname and port that you should use:
 
 ```
 ./server_status.py
@@ -1014,17 +1045,17 @@ For your convenience, a script is also provided for automated testing.  This is
 not a replacement for manual testing but can be used as a sanity check.  You
 can use it by simply running the following:
 
-```
-./driver.py server port [level]
-```
+(Replace "server" and "port" with a server and port from the set of
+[servers designated for testing](#testing-servers), preferably the one
+corresponding to your username.)
 
-Replace `server` and `port` with a server and port from the set of
-[servers designated for testing](#testing-servers) (i.e., preferably the one
-corresponding to your username).
+(Specifying `level` is _optional_.  If _specified_, then it will test
+[all seeds](#evaluation) against a given level.  If _not_ specified, it will
+test _all_ levels.)
 
-Specifying `level` is optional.  If specified, then it will test
-[all seeds](#evaluation) against a given level.  If not specified, it will test
-_all_ levels.
+```
+./driver.py server port level
+```
 
 
 # Evaluation
