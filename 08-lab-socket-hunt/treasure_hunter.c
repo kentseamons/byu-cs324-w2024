@@ -4,6 +4,8 @@
 
 #include <stdio.h>
 
+#include "sockhelper.h"
+
 int verbose = 0;
 
 void print_bytes(unsigned char *bytes, int byteslen);
