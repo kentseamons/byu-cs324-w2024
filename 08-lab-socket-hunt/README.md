@@ -1008,16 +1008,22 @@ primary hostname and port that you should use:
    up and move on.
  - Place helpful print statements in your code, for debugging.  Use
    `fprintf(stderr, ...)` to print to standard error.
- - Use the program `strace` to show you where you are sending datagrams with
-   `sendto()` or from where you are receiving them with `recvfrom()`.  For
-   example:
+ - Use the program `strace` to show you information about the datagrams you are
+   sending and receiving in connection with the `sendto()` and `recvfrom()`
+   system calls.  `strace` can be used with various command-line options to
+   cater it to your needs.  For example, the following command:
+
    ```bash
-   strace -e trace=sendto,recvfrom ./treasure_hunter ...
+   strace -xe trace=sendto,recvfrom ./treasure_hunter ...
    ```
-   calls `strace` on `./treasure_hunter`, showing only calls to `sendto()` and
-   `recvfrom()`.  By reading the `strace` output, you can compare the values
-   you are getting or setting with `parse_sockaddr()` and `populate_sockaddr()`
-   to see if they match what you are printing out for those values.
+
+   calls `strace` on `./treasure_hunter`, showing only the systems calls:
+   `sendto()` and `recvfrom()`.  By reading the `strace` output, you can
+   compare the the data you are actually sending and receiving with the data
+   that you _think_ you are sending and receiving.  You can also see the remote
+   address port associated with `sendto()` and `recvfrom()` calls and compare
+   those with the remote address and port with which you _think_ you are
+   communicating.
  - If a socket operation like `recvfrom()` results in a "Bad Address" error, it
    is often because the `addr_len` parameter had an incorrect value.  The
    `addr_len` parameter should contain a pointer to (the address of) a value
