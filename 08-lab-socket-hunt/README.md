@@ -1034,6 +1034,22 @@ primary hostname and port that you should use:
    ```c
    addr_len = sizeof(struct sockaddr_storage);
    ```
+ - If your program receives error code 133 (0x85), it means that the server was
+   unable to detect a remote port on which the client could call `bind()`.
+   Sometimes this is because your program is (accidentally) running multiple
+   times on your system and is thus occupying the ports that the server is
+   asking your program to use.  Try running the following to see if any other
+   `treasure_hunter` processes are running as your user:
+
+   ```bash
+   ps -fu $USER | grep treasure_hunter
+   ```
+
+   To terminate them, simply run:
+
+   ```bash
+   killall treasure_hunter
+   ```
  - If a call to `recv()` or `recvfrom()` blocks indefinitely -- particularly
    with level 1 or level 3 -- it could be that it is because the remote address
    and port have been set with `connect()` and the server cannot receive from
