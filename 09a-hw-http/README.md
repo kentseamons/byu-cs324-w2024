@@ -307,8 +307,8 @@ information on this.
 
 For this part of the assignment, you will write a CGI program--that is, the one
 that is executed by the HTTP server.  Call your program `myprog1.c`.  It should
-have _mostly_ the same functionality as the `myprog` in your `cgi-bin`
-directory.
+have _mostly_ the same behavior as that you observed in `cgi-bin/myprog`.  See
+the output from running the `curl` command against URL (e) above.
 
  - Retrieve the `CONTENT_LENGTH` and `QUERY_STRING` environment variables,
    which will have been set by the HTTP server using the `Content-Length`
@@ -316,11 +316,14 @@ directory.
    `CONTENT_LENGTH` environment variable is found, then convert it to an
    integer using `atoi()`.
 
- - Read exactly `CONTENT_LENGTH` bytes from standard input into a buffer.  That
-   is your request body.  While normally the bytes in the request body might be
-   anything, in this particular case, the bytes are text.  However, there will
-   be no null terminator.  Add a null byte at the end of the bytes read, so it
-   can be used with string functions, such as `strlen()`.
+ - Read exactly `CONTENT_LENGTH` bytes from standard input into a buffer
+   (`char []`).  That is your request body.  While normally the bytes in the
+   request body might be anything, in this particular case, the bytes are ASCII
+   text.  That means, in part, that there are no null values in the content.
+   That also means that there will be no null terminating byte.  (A null
+   terminating byte is a convention for a C string, not for HTTP request body.)
+   Add a null byte at the end of the bytes read, so it can be used with string
+   functions, such as `strlen()`.
 
  - Create the response body, so it contains the following contents:
 
@@ -331,29 +334,38 @@ directory.
    ```
 
    You might find the `sprintf()` function helpful for this.  Also, note that
-   unlike with the response headers, each line in the body should simply end
-   with `'\n'`; there is no need to include `'\r'`.
+   unlike with HTTP headers, each line in the body should simply end with
+   `'\n'`; there is no need to include `'\r'`.
 
  - Send "Content-Type" and "Content-Length" headers of the HTTP response to the
    client.  The type should be "text/plain", and length is the total length of
    the response body--which includes all bytes after the end-of-headers
-   sequence.  The server will have already sent the first line of the response
-   and some headers.  Your program should send the remaining headers along with
-   the the end-of-headers sequence.
+   sequence.  Because your content (created in the previous step) is a
+   null-terminated string, you can find this using `strlen()`.  Each header
+   should end with `"\r\n"`, and after the final header, there should be a
+   blank line; that is, this character sequence should follow the last header:
+   `"\r\n\r\n"`.
 
-   Each header should end with `"\r\n"`, and after the final headers, there
-   should be a blank line; that is, this character sequence should follow the
-   last header: `"\r\n\r\n"`.
+   Note that your CGI program is not responible for sending the first line of
+   the response (e.g., the protocol, response code, etc.).  That line, along
+   with any other initial headers, will have been sent by the server before it
+   called `fork()` and `execve()`.
+
+   Remember, the socket has been duplicated onto standard output.
 
  - Send the response body you created earlier.
 
 Test your program by compiling it and placing the resulting binary in
 `www/cgi-bin`.  Then run the same `curl` command line that you used for URL
-(e) above, substituting "myprog1" for "myprog".  Try a few different values
-for the query string and the request body.  The response headers (beginning
-with the "Content-Type" header) and the response body returned for `myprog1`
-should match those for `myprog`, byte for byte, except that "Hello world" will
-be replaced with "Hello CS324" in the body.
+(e) above, substituting "myprog1" for "myprog".  The response headers
+(beginning with the "Content-Type" header) and the response body returned for
+`myprog1` should match those for `myprog`, _byte for byte_, except that "Hello
+world" will be replaced with "Hello CS324" in the body.
+
+Try a few different values for the query string and the request body to see
+that it works properly in each case.  Note that for different response body
+values, you will need to update the `CONTENT_LENGTH` environment variable to
+match.
 
 Note that using skills you learned in the
 [BYU bandit assignment](../02-hw-byu-bandit) you can also test your CGI program
