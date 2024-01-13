@@ -986,6 +986,16 @@ Any of the above options can be used together.
    - If it works when you spawn threads on-the-fly but not with the threadpool,
      then make sure your threadpool has enough threads and slots.
      See [Part 4 - Threadpool](#part-4---threadpool).
+ - If `curl` prints the following error:
+
+   ```
+   Received HTTP/0.9 when not allowed
+   ```
+
+   it is likely because your proxy is sending an invalid HTTP response back to
+   the client.  Call `print_bytes()` to print the the contents of your response
+   immediately before calling `send()` to send your response, to see what is
+   being sent.
 
 
 # Evaluation
