@@ -44,6 +44,7 @@ concepts by building a working HTTP proxy that uses epoll.
    - [Manual Testing - Non-Local Server](#manual-testing---non-local-server)
    - [Manual Testing - Local Server](#manual-testing---local-server)
    - [Automated Testing](#automated-testing)
+ - [Debugging Hints](#debugging-hints)
  - [Evaluation](#evaluation)
  - [Submission](#submission)
 
@@ -346,6 +347,8 @@ Then do the following:
    from the client-to-proxy socket in a loop until one of the following
    happens:
 
+   (Note that the request will not exceed 1024 bytes.)
+
    - the entire HTTP request has been read--that is, the request contains
      `\r\n\r\n`.  If this is the case:
 
@@ -481,6 +484,8 @@ function, add the following functionality.
 
 If in the `READ_RESPONSE` state, loop to read from the proxy-to-server socket
 until one of the following happens:
+
+ (Note that the size of the response will not exceed 16384 bytes.)
 
  - you have read the entire HTTP response from the server.  Since this is
    HTTP/1.0, this is when the call to `read()` (or `recv()`) returns 0,
@@ -636,6 +641,12 @@ See
 See
 [Automated Testing](../10-lab-proxy-threadpool#automated-testing),
 but use "epoll" in place of "threadpool" whenever the driver is used.
+
+
+# Debugging Hints
+
+See
+[Debugging Hints](../10-lab-proxy-threadpool#debugging-hints).
 
 
 # Evaluation
