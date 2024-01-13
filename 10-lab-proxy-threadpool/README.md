@@ -44,6 +44,7 @@ programming by building a working HTTP proxy server with a threadpool.
    - [Manual Testing - Non-Local Server](#manual-testing---non-local-server)
    - [Manual Testing - Local Server](#manual-testing---local-server)
    - [Automated Testing](#automated-testing)
+ - [Debugging Hints](#debugging-hints)
  - [Evaluation](#evaluation)
  - [Submission](#submission)
 
@@ -86,6 +87,7 @@ your concurrency approach to use a threadpool.
 Read the following in preparation for this assignment:
 
   - Sections 11.1 - 11.6, 12.1, and 12.3 - 12.5 in the book
+
 Additionally, man pages for the following are referenced throughout the
 assignment:
 
@@ -220,11 +222,6 @@ It provides four scenarios: complete HTTP request with default port; complete
 HTTP request with explicit port and query string; complete request with dotless
 hostname, and incomplete HTTP request.
 
-Note that in addition to setting the various values extracted from the request,
-`test_parser()` expects `parse_request()` to return 1 if the request was
-complete and 0 otherwise.  You could get this result by having
-`parse_request()` call `complete_request_received()`.
-
 Compile your proxy code by running the following:
 
 ```bash
@@ -286,7 +283,8 @@ Write functions for each of the following:
    the following:
    - Read from the socket into a buffer until the entire HTTP request has been
      received.  Again, there is no request body in this lab, so this is
-     basically just the end of headers.
+     basically just the end of headers.  The size of the request will not
+     exceed 1024 bytes.
    - Print out the HTTP request using `print_bytes()`.  This will allow you to
      see the entire request.
    - Add a null-terminator to the HTTP request, and pass it to the
@@ -494,7 +492,7 @@ server.  Modify your `handle_client()` function again:
  - Receive the HTTP response from the server.  Just like when the HTTP proxy
    received the request from the client, the proxy will need to loop and
    continue reading from the server socket until the entire response has been
-   received.
+   received. The size of the response will not exceed 16384 bytes.
 
    With HTTP/1.0 (what is being used in *this* lab), only *one* request is made
    over a given TCP connection.  Thus, when the server has sent all it has to
@@ -886,11 +884,10 @@ For example:
    ```bash
    ./driver.py -vv -b 30 -c 35 threadpool
    ```
- - *Proxy Output.*  If you want the output of your proxy to go to a file, which
-   you can inspect either real-time or after-the-fact, use the `-p` option.
-   Use `-p - ` for your proxy output to go to standard output.
+ - *Proxy Output.*  If you want the output of your proxy to go to standard
+   output, use the `-p -` option.
    ```bash
-   ./driver.py -p myproxyoutput.txt -b 60 -c 35 threadpool
+   ./driver.py -p - -b 60 -c 35 threadpool
    ```
  - *Downloaded Files.*  By default, the downloaded files are saved to a
    temporary directory, which is deleted after the tests finish--so your home
@@ -899,9 +896,96 @@ For example:
    ```bash
    ./driver.py -k -b 60 -c 35 threadpool
    ```
-   If you use this option, be sure to delete the directors afterwards!
+   If you use this option, be sure to delete the directories afterwards!
 
 Any of the above options can be used together.
+
+
+# Debugging Hints
+
+ - Check the return values to all system calls, and use `perror()` to print out
+   the error message if the call failed.  Sometimes it is appropriate to call
+   `exit()` with a non-zero value; other times it is more appropriate to clean
+   up and move on.
+ - Place helpful print statements in your code, for debugging.  Use
+   `fprintf(stderr, ...)` to print to standard error.
+ - Use the `-p -` option  with `driver.py`, which will send all of your proxy
+   output to standard output, so you can see your debug statements on the
+   terminal just as you can see them outside the terminal.
+ - When printing out what you are sending or receiving, print it out
+   _immediately_ before calling `send()` or `recv()`.
+ - If you are getting unexpected values for the lengths of data received --
+   particularly for the image files -- ensure that you are not using
+   `strlen()`, except on _null-terminated strings_.  For data read from a
+   socket, you should be using the return value of `recv()` to determine how
+   much you have read.  Only use `strlen()` if 1) you are sure that the bytes
+   you are wanting to measure have no null byte values (and typically, you are
+   wanting to read ASCII characters) and 2) the sequence of bytes you are
+   wanting to measure are immediately followed by a null byte.  This null byte
+   will not be included in data read from a socket; it will be only be there if
+   placed by your code.
+ - Often it can be helpful to initialize you buffers before use.  You can use
+   `bzero()` for this.  See the man page for `bzero(3)` for more.
+ - If you get the following error:
+
+   ```
+   __main__.MissingFile: File "./www/cgi-bin/slow" not found
+   ```
+
+   run the `make` command specified in the
+   [Manual Testing](#manual-testing---non-local-server) section.
+ - If the `slow-client.py` is printing the following error:
+
+   ```
+   ConnectionResetError: [Errno 104] Connection reset by peer
+   ```
+
+   it is because the other end of the connection (the client-to-proxy socket on
+   your proxy) has been closed before all the data was read.  That means that
+   your proxy is not reading the full request sent by the client.  Remember
+   that `slow-client.py` sends the request slowly, over multiple calls to
+   `send()`.  For this reason, your proxy _must_ call `recv()` multiple times
+   to receive the full request and empty the buffer.  The only way for your
+   proxy to know that it has received the entire request is by looking for the
+   end-of-headers sequence (`"\r\n\r\n"`).
+ - If the python-based HTTP server results in the following error:
+
+   ```
+   ConnectionResetError: [Errno 104] Connection reset by peer
+   ```
+
+   it is because the other end of the connection (the proxy-to-server socket on
+   your proxy) has been closed before all the data was read.  That means that
+   your proxy is not reading the full response from the server.  Remember that
+   for some of the URLs requested, the responses are sent slowly, over multiple
+   calls to `send()`.  For this reason, your proxy _must_ call `recv()`
+   multiple times to receive the full response and empty the buffer.  The only
+   way for your proxy to know that it has received the entire response is when
+   `recv()` returns 0, indicating that the server has closed its end of the
+   connection.
+ - If the driver reports that files differ, use the `-k` option to "keep" the
+   files retrieved from the server and through the proxy server; they are
+   otherwise deleted automatically to keep them from cluttering up your
+   filesystem.  They will be stored with some funny-looking names to keep them
+   from accidentally overwriting other files on your system.  Then use `ls -l`
+   to look at file sizes.  Often that is enough to point you in the right
+   direction.  If you need more, use `cat` to show you the file contents and/or
+   `diff -u` to look at the actual content differences.
+ - If the driver reports that the slow files were retrieved before the fast
+   files, add some print statements to your code to show the progress for each
+   state of the request handling: receiving the request, sending the request,
+   receiving the response, sending the response.  You should see the states for
+   the slow requests (which start first) interrupted by the states for the fast
+   request (which start later), such that the slow requests finish last.
+
+   A few things to look for when troubleshooting this problem:
+
+   - Make sure that your proxy is reading the entire HTTP request from the
+     client.  If that's the case, then the slow requests might actually finish
+     faster.
+   - If it works when you spawn threads on-the-fly but not with the threadpool,
+     then make sure your threadpool has enough threads and slots.
+     See [Part 4 - Threadpool](#part-4---threadpool).
 
 
 # Evaluation
