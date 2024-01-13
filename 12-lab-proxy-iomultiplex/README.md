@@ -270,8 +270,6 @@ Now add the following to `main()`:
      will implement the handling of existing clients later.  If the event
      corresponds to the listening file descriptor, then call
      `handle_new_clients()`.
- - After the `epoll_wait()` `while(1)` loop, you should clean up any resources
-   (e.g., freeing `malloc()`'d memory), and exit.
 
 At this point, your server is merely set up to listen for incoming client
 connections and `accept()` them.  It is not yet doing anything else useful, but
