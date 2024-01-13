@@ -51,4 +51,5 @@ void print_bytes(unsigned char *bytes, int byteslen) {
 		}
 	}
 	printf("\n");
+	fflush(stdout);
 }
