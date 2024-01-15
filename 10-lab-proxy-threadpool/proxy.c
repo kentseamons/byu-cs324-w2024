@@ -1,12 +1,14 @@
 #include <stdio.h>
 
+#include "sockhelper.h"
+
 /* Recommended max object size */
 #define MAX_OBJECT_SIZE 102400
 
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:97.0) Gecko/20100101 Firefox/97.0";
 
 int complete_request_received(char *);
-int parse_request(char *, char *, char *, char *, char *);
+void parse_request(char *, char *, char *, char *, char *);
 void test_parser();
 void print_bytes(unsigned char *, int);
 
@@ -22,9 +24,8 @@ int complete_request_received(char *request) {
 	return 0;
 }
 
-int parse_request(char *request, char *method,
+void parse_request(char *request, char *method,
 		char *hostname, char *port, char *path) {
-	return 0;
 }
 
 void test_parser() {
@@ -54,7 +55,9 @@ void test_parser() {
 	
 	for (i = 0; reqs[i] != NULL; i++) {
 		printf("Testing %s\n", reqs[i]);
-		if (parse_request(reqs[i], method, hostname, port, path)) {
+		if (complete_request_received(reqs[i])) {
+			printf("REQUEST COMPLETE\n");
+			parse_request(reqs[i], method, hostname, port, path);
 			printf("METHOD: %s\n", method);
 			printf("HOSTNAME: %s\n", hostname);
 			printf("PORT: %s\n", port);
@@ -103,4 +106,5 @@ void print_bytes(unsigned char *bytes, int byteslen) {
 		}
 	}
 	printf("\n");
+	fflush(stdout);
 }

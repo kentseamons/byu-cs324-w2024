@@ -44,6 +44,7 @@ concepts by building a working HTTP proxy that uses epoll.
    - [Manual Testing - Non-Local Server](#manual-testing---non-local-server)
    - [Manual Testing - Local Server](#manual-testing---local-server)
    - [Automated Testing](#automated-testing)
+ - [Debugging Hints](#debugging-hints)
  - [Evaluation](#evaluation)
  - [Submission](#submission)
 
@@ -233,10 +234,11 @@ Write functions for each of the following:
      - Allocate memory for a new `struct request_info` and initialize the
        values in that `struct request_info`.  The initial state should be
        `READ_REQUEST`.
-     - Register each returned client-to-proxy socket with the epoll instance
-       that you created, for reading, using edge-triggered monitoring
-       (i.e., `EPOLLIN | EPOLLET`).  Associate the newly-allocated `struct
-       request_info` with the event by assigning the `data.ptr` member to it.
+     - Using `epoll_ctl()` and `EPOLL_CTL_ADD`, register each returned
+       client-to-proxy socket with the epoll instance that you created, for
+       reading, using edge-triggered monitoring (i.e., `EPOLLIN | EPOLLET`).
+       Associate the newly-allocated `struct request_info` with the event by
+       assigning the `data.ptr` member to it.
 
      You should only break out of your loop and stop calling `accept()` when it
      returns a value less than 0, in which case:
@@ -268,8 +270,6 @@ Now add the following to `main()`:
      will implement the handling of existing clients later.  If the event
      corresponds to the listening file descriptor, then call
      `handle_new_clients()`.
- - After the `epoll_wait()` `while(1)` loop, you should clean up any resources
-   (e.g., freeing `malloc()`'d memory), and exit.
 
 At this point, your server is merely set up to listen for incoming client
 connections and `accept()` them.  It is not yet doing anything else useful, but
@@ -346,6 +346,8 @@ Then do the following:
    from the client-to-proxy socket in a loop until one of the following
    happens:
 
+   (Note that the request will not exceed 1024 bytes.)
+
    - the entire HTTP request has been read--that is, the request contains
      `\r\n\r\n`.  If this is the case:
 
@@ -364,8 +366,8 @@ Then do the following:
      - Create a new socket and call `connect()` to the HTTP server.
      - Configure the new socket as nonblocking. (Do this only _after_ calling
        `connect()`!)
-     - Unregister the client-to-proxy socket with the epoll instance that you
-       created.
+     - Using `epoll_ctl()` and `EPOLL_CTL_DEL`, deregister the client-to-proxy
+       socket with the epoll instance that you created.
      - Register the proxy-to-server socket with the epoll instance that you
        created, for _writing_ (i.e., `EPOLLOUT`).
      - Change the state of the request to `SEND_REQUEST`.
@@ -377,7 +379,7 @@ Then do the following:
      - If `errno` is anything else, this is an error.  Print out the error with
        `perror()`, close the client-to-proxy socket, and free the memory
        associated with the current `struct request_info *`.  Closing the socket
-       automatically unregisters it from any associations with the epoll
+       automatically deregisters it from any associations with the epoll
        instance.
 
    - At this point, you can return from the function.  There is no more that
@@ -433,7 +435,7 @@ If in the `SEND_REQUEST` state, loop to write the request to the server
 using the proxy-to-server socket until one of the following happens:
 
  - you have sent the entire HTTP request to the server.  If this is the case:
-   - Unregister the proxy-to-server socket with the epoll instance for writing.
+   - Deregister the proxy-to-server socket with the epoll instance for writing.
    - Register the proxy-to-server socket with the epoll instance for reading.
    - Change state to `READ_RESPONSE`.
  - `write()` (or `send()`) returns a value less than 0.
@@ -444,7 +446,7 @@ using the proxy-to-server socket until one of the following happens:
    - If `errno` is anything else, this is an error.  Print out the error with
      `perror()`, close both client-to-proxy and proxy-to-server sockets, and
      free the memory associated with the current `struct request_info *`.
-     Closing the sockets automatically unregisters your sockets from any
+     Closing the sockets automatically deregisters your sockets from any
      associations with the epoll instance.
 
 At this point, you can return from the function.  There is no more that can be
@@ -482,6 +484,8 @@ function, add the following functionality.
 If in the `READ_RESPONSE` state, loop to read from the proxy-to-server socket
 until one of the following happens:
 
+ (Note that the size of the response will not exceed 16384 bytes.)
+
  - you have read the entire HTTP response from the server.  Since this is
    HTTP/1.0, this is when the call to `read()` (or `recv()`) returns 0,
    indicating that the server has closed the connection.  If this is the case:
@@ -496,7 +500,7 @@ until one of the following happens:
    - If `errno` is anything else, this is an error.  Print out the error with
      `perror()`, close both client-to-proxy and proxy-to-server sockets, and
      free the memory associated with the current `struct request_info *`.
-     Closing the sockets automatically unregisters your sockets from any
+     Closing the sockets automatically deregisters your sockets from any
      associations with the epoll instance.
 
 At this point, you can return from the function.  There is no more that can be
@@ -551,7 +555,7 @@ using the client-to-proxy socket until one of the following happens:
    - If `errno` is anything else, this is an error.  Print out the error with
      `perror()`, close the client-to-proxy socket, and free the memory
      associated with the current `struct request_info *`.  Closing the socket
-     automatically unregisters it from any associations with the epoll
+     automatically deregisters it from any associations with the epoll
      instance.
 
 At this point, you can return from the function.  The HTTP request has been
@@ -636,6 +640,12 @@ See
 See
 [Automated Testing](../10-lab-proxy-threadpool#automated-testing),
 but use "epoll" in place of "threadpool" whenever the driver is used.
+
+
+# Debugging Hints
+
+See
+[Debugging Hints](../10-lab-proxy-threadpool#debugging-hints).
 
 
 # Evaluation

@@ -1,11 +1,11 @@
 CC = gcc
-CFLAGS = -Wall -O2 -g
+CFLAGS = -Wall -O2 -g -I ../include/
 
-all: proxy
 .PHONY: all
+all: proxy
 
-proxy: proxy.c
-	$(CC) $(CFLAGS) -o proxy proxy.c
+proxy: proxy.c ../code/sbuf.c ../code/sockhelper.c
+	$(CC) $(CFLAGS) -o proxy proxy.c ../code/sbuf.c ../code/sockhelper.c
 
 .PHONY: clean
 clean:
