@@ -75,7 +75,6 @@ int main(int argc, char* argv[])
   double dy=(ymax-ymin)/yres;
 
   double x, y; /* Coordinates of the current point in the complex plane. */
-  double u, v; /* Coordinates of the iterated point. */
   int i,j; /* Pixel counters */
   int k; /* Iteration counter */
   int *saved = malloc(sizeof(int)*yres*xres);
@@ -83,10 +82,9 @@ int main(int argc, char* argv[])
   for (j = 0; j < yres; j++) {
     y = ymax - j * dy;
     for(i = 0; i < xres; i++) {
-      double u = 0.0;
-      double v= 0.0;
+      double u = 0.0, v = 0.0; /* Coordinates of the iterated point. */
       double u2 = u * u;
-      double v2 = v*v;
+      double v2 = v * v;
       x = xmin + i * dx;
       /* iterate the point */
       for (k = 1; k < maxiter && (u2 + v2 < 4.0); k++) {
