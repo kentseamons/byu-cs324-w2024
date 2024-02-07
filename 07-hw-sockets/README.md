@@ -224,7 +224,7 @@ we passed on the command line.  To add a null character at the end (for
 performing string operations), you can do something like this:
 
 ```c
-`buf[nread]` = '\0';
+buf[nread] = '\0';
 ```
 
 Now take note of how the number of calls to `sendto()` on the client relates to
