@@ -56,6 +56,19 @@ Now execute the command to build the Mandelbrot set with the following:
 ./mandelbrot 0.27085 0.27100 0.004640 0.004810 1000 8192 pic.ppm
 ```
 
+NOTE: This creates a very large file, `pic.ppm`, which you will be instructed
+to delete later in the assignment, after you are done with it.
+
+Run the following to get the SHA1 sum of the file:
+
+```bash
+sha1sum pic.ppm
+```
+
+Save the value of the SHA1 sum shown in the output.  Hint: it should start with
+"04c0e2...".  You will be referring to it later, to make sure that your program
+is still behaving properly after parallelizing it.
+
 Normalize, and convert the output to png format using `convert` (part of the
 ImageMagick suite):
 
@@ -68,12 +81,6 @@ MAGICK_CONFIGURE_PATH=. convert -negate -normalize -fill blue -tint 100 pic.ppm 
 contains the maximum resource values.  In particular, by using a custom version
 of `policy.xml` in the current directory (`.`), we can override the system-wide
 setting 256MiB of memory that `convert` can use to 2GiB.)
-
-Run the following to get the SHA1 sum of the file:
-
-```bash
-sha1sum pic.ppm
-```
 
 Finally, open `pic.png` in a Web browser or image viewer to see it.
 
