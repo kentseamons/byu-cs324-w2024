@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
 	// getsockname().  See the man page for getsockname().
 	addr_len = sizeof(struct sockaddr_storage);
 	s = getsockname(sfd, local_addr, &addr_len);
-	// Extract the IP address and port from remote_addr using
+	// Extract the IP address and port from local_addr using
 	// parse_sockaddr().  parse_sockaddr() is defined in
 	// ../code/sockhelper.c.
 	parse_sockaddr(local_addr, local_ip, &local_port);
