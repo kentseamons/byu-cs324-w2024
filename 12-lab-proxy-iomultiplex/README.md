@@ -370,6 +370,7 @@ Then do the following:
        socket with the epoll instance that you created.
      - Register the proxy-to-server socket with the epoll instance that you
        created, for _writing_ (i.e., `EPOLLOUT`).
+       - Use the same request_info pointer for the event as used with the previous step of the request
      - Change the state of the request to `SEND_REQUEST`.
 
    - `read()` (or `recv()`) returns a value less than 0.
