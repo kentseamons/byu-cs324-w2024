@@ -18,12 +18,12 @@ status = {}
 def check_server(server):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(2)
-    s.connect((server, PORT))
-    s.send(b'')
     try:
+        s.connect((server, PORT))
+        s.send(b'')
         s.recv(1)
         stat = True
-    except (socket.timeout, ConnectionRefusedError):
+    except OSError:
         stat = False
 
     with lock:
@@ -40,6 +40,8 @@ def user_specific_index(total):
 def get_status():
     threads = []
     for server in SERVERS:
+        status[server] = None
+    for server in SERVERS:
         t = threading.Thread(target=check_server, args=(server,))
         t.start()
         threads.append(t)
@@ -51,10 +53,10 @@ def show_full_status():
     i = 0
     for server in SERVERS:
         if status[server]:
-            stat = 'OK'
+            stat = '\033[32mOK\033[0m'
         else:
-            stat = 'DOWN'
-        sys.stdout.write('%15s: %5s  ' % (server, stat))
+            stat = '\033[31mDOWN\033[0m'
+        sys.stdout.write('%15s: %13s  ' % (server, stat))
         i += 1
         if i % 3 == 0:
             sys.stdout.write('\n')
