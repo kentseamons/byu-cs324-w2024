@@ -40,6 +40,8 @@ def user_specific_index(total):
 def get_status():
     threads = []
     for server in SERVERS:
+        status[server] = None
+    for server in SERVERS:
         t = threading.Thread(target=check_server, args=(server,))
         t.start()
         threads.append(t)
