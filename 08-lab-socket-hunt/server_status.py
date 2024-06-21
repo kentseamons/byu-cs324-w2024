@@ -18,12 +18,12 @@ status = {}
 def check_server(server):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(2)
-    s.connect((server, PORT))
-    s.send(b'')
     try:
+        s.connect((server, PORT))
+        s.send(b'')
         s.recv(1)
         stat = True
-    except (socket.timeout, ConnectionRefusedError):
+    except OSError:
         stat = False
 
     with lock:
