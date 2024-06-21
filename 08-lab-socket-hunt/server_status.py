@@ -51,10 +51,10 @@ def show_full_status():
     i = 0
     for server in SERVERS:
         if status[server]:
-            stat = 'OK'
+            stat = '\033[32mOK\033[0m'
         else:
-            stat = 'DOWN'
-        sys.stdout.write('%15s: %5s  ' % (server, stat))
+            stat = '\033[31mDOWN\033[0m'
+        sys.stdout.write('%15s: %13s  ' % (server, stat))
         i += 1
         if i % 3 == 0:
             sys.stdout.write('\n')
